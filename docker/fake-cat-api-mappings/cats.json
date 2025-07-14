@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/cats",
+    "headers": {
+      "X-API-Key": {
+        "equalTo": "demo-secret-key"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": [
+      {
+        "id": 1,
+        "name": "Tom",
+        "breed": "Siamese",
+        "age": 3
+      }
+    ]
+  }
+}
