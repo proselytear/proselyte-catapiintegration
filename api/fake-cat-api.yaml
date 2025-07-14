@@ -1,0 +1,68 @@
+openapi: 3.0.1
+info:
+  title: Fake Cat API
+  version: '1.0'
+servers:
+  - url: http://localhost:8081
+paths:
+  /cats:
+    get:
+      tags:
+        - Cat
+      summary: Get list of cats
+      operationId: getCats
+      security:
+        - ApiKeyAuth: [ ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Cat'
+  /cats/{id}:
+    get:
+      tags:
+        - Cat
+      summary: Get cat by ID
+      operationId: getCatById
+      security:
+        - ApiKeyAuth: [ ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Cat ID
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Cat found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cat'
+        '404':
+          description: Cat not found
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Cat:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        breed:
+          type: string
+        age:
+          type: integer

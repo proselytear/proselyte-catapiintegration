@@ -1,36 +1,98 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.5.3'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.springframework.boot' version "${springBootVersion}"
+    id 'io.spring.dependency-management' version "${springDependencyManagementVersion}"
+    id 'java'
+    id 'org.openapi.generator' version "$openApiGeneratorPluginVersion"
 }
 
-group = 'net.proselyte'
-version = '1.0.0'
-
-java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(24)
-	}
-}
-
-configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
-	}
-}
+group = 'net.proselyte.catapiintegration'
+version = "$appVersion"
+sourceCompatibility = JavaVersion.VERSION_24
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-	compileOnly 'org.projectlombok:lombok'
-	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    implementation "org.springframework.boot:spring-boot-starter-web"
+    implementation "org.springframework.cloud:spring-cloud-starter-openfeign:${springCloudStarterOpenFeignVersion}"
+    implementation "io.github.resilience4j:resilience4j-spring-boot3:${resilience4jSpringBoot3Version}"
+    implementation "jakarta.validation:jakarta.validation-api:${jakartaValidationApiVersion}"
+    implementation "org.openapitools:jackson-databind-nullable:${jacksonDatabindNullableVersion}"
+    implementation "javax.annotation:javax.annotation-api:${javaxAnnotationApiVersion}"
+    implementation "org.jetbrains:annotations:${jetbrainsAnnotationsVersion}"
+    implementation "com.google.code.findbugs:jsr305:${jsr305Version}"
+    implementation "io.swagger.core.v3:swagger-annotations:${swaggerAnnotationsVersion}"
+    implementation "io.github.openfeign:feign-okhttp:${feignOkhttpVersion}"
+    implementation "io.github.openfeign:feign-jackson:${feignJacksonVersion}"
+    implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+    annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+    // TEST
+    testImplementation "io.rest-assured:rest-assured:${restAssuredVersion}"
+    testImplementation "org.wiremock:wiremock-standalone:${wiremockStandaloneVersion}"
+    testImplementation "org.wiremock.integrations.testcontainers:wiremock-testcontainers-module:${wiremockTestcontainersModuleVersion}"
+    testImplementation "javax.servlet:javax.servlet-api:${javaxServletApiVersion}"
+    testImplementation "org.springframework.boot:spring-boot-starter-test"
 }
 
-tasks.named('test') {
-	useJUnitPlatform()
+openApiGenerate {
+    generatorName = "spring"
+    inputSpec = "$rootDir/api/fake-cat-api.yaml"
+    outputDir = layout.buildDirectory.dir('generated').get().asFile.absolutePath
+    apiPackage = "net.proselyte.catapiintegration.api"
+    modelPackage = "net.proselyte.catapiintegration.model"
+    invokerPackage = "net.proselyte.catapiintegration.invoker"
+    configOptions = [library        : "spring-cloud",
+                     useFeignClients: "true",
+                     interfaceOnly  : "true",
+                     useJakartaEe   : "true"]
+}
+
+tasks.register('annotateFeignClients') {
+    dependsOn 'openApiGenerate'
+    doLast {
+        def apiDir = layout.buildDirectory.dir('generated/src/main/java/net/proselyte/catapiintegration/api').get().asFile
+        apiDir.eachFile { file ->
+            if (file.name.endsWith("Api.java")) {
+                def text = file.text
+                // Вставляем import сразу после package
+                if (!text.contains("import org.springframework.cloud.openfeign.FeignClient;")) {
+                    text = text.replaceFirst(/(package [^;]+;\s*)/,
+                            "\$1import org.springframework.cloud.openfeign.FeignClient;\n")
+                }
+                // Вставляем аннотацию перед interface
+                if (!text.contains("@FeignClient")) {
+                    text = text.replaceFirst("public interface",
+                            "@FeignClient(name = \"cat-api\", url = \"\\\${cat.api.base-url}\")\npublic interface")
+                }
+                file.write(text)
+            }
+        }
+    }
+}
+compileJava.dependsOn 'annotateFeignClients'
+compileJava.dependsOn 'openApiGenerate'
+
+sourceSets.main.java.srcDir layout.buildDirectory.dir('generated/src/main/java').get().asFile
+
+test {
+    useJUnitPlatform()
+    include '**/*'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir layout.buildDirectory.dir('generated/src/main/java')
+        }
+    }
+    test {
+        java {
+            srcDir layout.buildDirectory.dir('generated/src/main/java')
+        }
+    }
 }
