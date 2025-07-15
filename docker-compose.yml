@@ -7,8 +7,27 @@ services:
     volumes:
       - ./docker/fake-cat-api-mappings:/home/wiremock/mappings:ro
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/__admin/"]
+      test: [ "CMD", "sh", "-c", "curl -s -o /dev/null -w '%{http_code}' -H 'X-API-Key: demo-secret-key' http://localhost:8080/cats | grep -qE '200|404'" ]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 5s
+
+  cat-integration-app:
+    build: .
+    container_name: cat-integration-app
+    depends_on:
+      fake-cat-api:
+        condition: service_healthy
+    environment:
+      - CAT_API_KEY=demo-secret-key
+      - CAT_API_BASE_URL=http://fake-cat-api:8080
+      - CAT_API_MAX_RPS=5
+    ports:
+      - "8088:8099"
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8099/actuator/health" ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
